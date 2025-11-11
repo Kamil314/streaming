@@ -96,24 +96,103 @@ export const initializeHLSPlayer = (videoElement) => {
 
   // Check if HLS.js is available and needed
   if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-    // Keep the URL with cache bust parameter (playlist uses absolute URLs for segments)
+    // Extract base URL from playlist URL (without query params) for proper segment resolution
+    const playlistUrlWithoutQuery = videoSrc.split('?')[0];
+    const baseUrl = playlistUrlWithoutQuery.substring(0, playlistUrlWithoutQuery.lastIndexOf('/') + 1);
+    
+    // Helper function to fix fragment URLs to use the correct base path
+    const fixFragmentUrl = (url) => {
+      if (!url) return url;
+      
+      // If it's already a correct absolute URL with the base path, return as is
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+      
+      // If it's an absolute URL but missing the path
+      if (url.includes('://')) {
+        try {
+          const urlObj = new URL(url);
+          const baseUrlObj = new URL(baseUrl);
+          // Same origin but different path - extract filename and use base path
+          if (urlObj.origin === baseUrlObj.origin) {
+            const filename = url.substring(url.lastIndexOf('/') + 1);
+            return baseUrl + filename;
+          }
+        } catch (e) {
+          // Invalid URL format, treat as relative
+        }
+      }
+      
+      // If URL is missing protocol (e.g., "domain.com/000.ts")
+      if (url.includes('/') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+        // Try to extract the filename and use base URL
+        const filename = url.substring(url.lastIndexOf('/') + 1);
+        if (filename && filename.endsWith('.ts')) {
+          return baseUrl + filename;
+        }
+      }
+      
+      // Relative URL (e.g., "000.ts" or "/000.ts")
+      const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
+      return baseUrl + cleanUrl;
+    };
+    
+    // Create custom loader to intercept and fix URLs at the loader level
+    class CustomLoader extends Hls.DefaultConfig.loader {
+      constructor(config) {
+        super(config);
+        this.baseUrl = baseUrl;
+      }
+      
+      load(context, config, callbacks) {
+        // Fix the URL before loading
+        if (context.url) {
+          context.url = fixFragmentUrl(context.url);
+        }
+        // Call parent loader
+        return super.load(context, config, callbacks);
+      }
+    }
+    
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: false,
-      backBufferLength: 90
+      backBufferLength: 90,
+      loader: CustomLoader
     });
     
     hlsInstances.set(videoElement, hls);
     
-    // Load playlist with cache bust parameter
-    hls.loadSource(videoSrc);
-    hls.attachMedia(videoElement);
-    
-    // Handle successful load
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    // Intercept manifest parsing to fix fragment URLs to use the correct base path
+    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+      // Fix all fragment URLs to ensure they use the correct base URL
+      if (data.levels && data.levels.length > 0) {
+        data.levels.forEach(level => {
+          if (level.details && level.details.fragments) {
+            level.details.fragments.forEach(fragment => {
+              if (fragment.url) {
+                fragment.url = fixFragmentUrl(fragment.url);
+              }
+            });
+          }
+        });
+      }
+      
       removeLoadingIndicator();
       console.log('HLS manifest parsed successfully');
     });
+    
+    // Also intercept fragment loading as a fallback to fix URLs before they're requested
+    hls.on(Hls.Events.FRAG_LOADING, (event, data) => {
+      if (data.frag && data.frag.url) {
+        data.frag.url = fixFragmentUrl(data.frag.url);
+      }
+    });
+    
+    // Load playlist with cache bust parameter
+    hls.loadSource(videoSrc);
+    hls.attachMedia(videoElement);
 
     // Handle loading progress
     hls.on(Hls.Events.FRAG_LOADING, () => {

@@ -134,17 +134,36 @@ exports.processVideoOnUpload = functions
       // Get the base URL for the playlist
       const storageBucket = storage.bucket();
       const playlistDestination = `${hlsFolder}/playlist.m3u8`;
-      const playlistBaseUrl = `https://storage.googleapis.com/${storageBucket.name}/${encodeURIComponent(playlistDestination).replace(/'/g, '%27')}`;
+      
+      // Encode path segments separately to preserve slashes
+      const encodedPath = playlistDestination.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const playlistBaseUrl = `https://storage.googleapis.com/${storageBucket.name}/${encodedPath}`;
       const baseUrl = playlistBaseUrl.substring(0, playlistBaseUrl.lastIndexOf('/') + 1);
+      
+      console.log('Playlist base URL:', baseUrl);
+      console.log('HLS folder:', hlsFolder);
       
       // Replace relative segment paths with absolute URLs
       // Match lines that end with .ts and don't start with # (segment filenames)
       playlistContent = playlistContent.replace(/^([^#\r\n]+\.ts)$/gm, (match) => {
         const segmentName = match.trim();
-        // If it's already an absolute URL, leave it
+        
+        // If it's already an absolute URL, check if it has the correct path
         if (segmentName.startsWith('http://') || segmentName.startsWith('https://')) {
+          // Check if the URL is missing the correct path (e.g., just domain/segment.ts)
+          const urlObj = new URL(segmentName);
+          const baseUrlObj = new URL(baseUrl);
+          
+          // If same origin but path doesn't match the expected base path, fix it
+          if (urlObj.origin === baseUrlObj.origin && !segmentName.startsWith(baseUrl)) {
+            // Extract just the filename and use the correct base path
+            const filename = segmentName.substring(segmentName.lastIndexOf('/') + 1);
+            return baseUrl + filename;
+          }
+          // If it's already correct, return as is
           return segmentName;
         }
+        
         // Convert relative path to absolute URL
         return baseUrl + segmentName;
       });
