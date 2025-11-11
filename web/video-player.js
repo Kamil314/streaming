@@ -96,6 +96,7 @@ export const initializeHLSPlayer = (videoElement) => {
 
   // Check if HLS.js is available and needed
   if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+    // Keep the URL with cache bust parameter (playlist uses absolute URLs for segments)
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: false,
@@ -104,6 +105,7 @@ export const initializeHLSPlayer = (videoElement) => {
     
     hlsInstances.set(videoElement, hls);
     
+    // Load playlist with cache bust parameter
     hls.loadSource(videoSrc);
     hls.attachMedia(videoElement);
     

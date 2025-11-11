@@ -22,7 +22,9 @@ const renderVideoCards = (videos, container) => {
   // Add cache busting to playlist URLs
   const addCacheBust = (url) => {
     const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}_cb=${Date.now()}`;
+    // Use random value for cache busting
+    const randomValue = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    return `${url}${separator}_cb=${randomValue}`;
   };
 
   container.innerHTML = videos.map(video => {
