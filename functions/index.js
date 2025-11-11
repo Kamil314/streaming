@@ -75,13 +75,13 @@ const downloadFromStorage = async (filePath, localPath) => {
   return localPath;
 };
 
-// Helper: Get signed URL
-const getSignedUrl = async (file, expires = '03-09-2491') => {
-  const [url] = await file.getSignedUrl({
-    action: 'read',
-    expires
-  });
-  return url;
+// Helper: Get public URL (no signing required)
+const getPublicUrl = async (file) => {
+  // Construct public URL directly
+  // Files in videos/ folder are publicly readable via storage rules
+  const bucketName = file.bucket.name;
+  const fileName = encodeURIComponent(file.name).replace(/'/g, '%27');
+  return `https://storage.googleapis.com/${bucketName}/${fileName}`;
 };
 
 /**
@@ -146,8 +146,8 @@ exports.processVideoOnUpload = functions
         );
       }
 
-      // Get playlist URL
-      const playlistUrl = await getSignedUrl(playlistFile);
+      // Get playlist URL (public)
+      const playlistUrl = await getPublicUrl(playlistFile);
 
       // Store metadata
       const videoData = {
