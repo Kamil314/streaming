@@ -1,0 +1,25 @@
+{
+  "name": "video-streaming-poc",
+  "version": "1.0.0",
+  "description": "Firebase Functions POC for video upload and HLS streaming",
+  "scripts": {
+    "install:functions": "cd functions && npm install",
+    "deploy": "npm run install:functions && firebase deploy --only functions",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:all": "npm run install:functions && firebase deploy",
+    "serve": "firebase emulators:start",
+    "serve:functions": "cd functions && npm run serve",
+    "logs": "firebase functions:log",
+    "setup": "npm run install:functions"
+  },
+  "keywords": [
+    "firebase",
+    "functions",
+    "video",
+    "streaming",
+    "hls"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

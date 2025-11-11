@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow uploads to uploads/ folder
+    match /uploads/{allPaths=**} {
+      allow read: if true;
+      allow write: if true; // Allow uploads from client
+    }
+    
+    // Processed videos in videos/ folder
+    match /videos/{videoId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if false; // Only functions can write
+    }
+  }
+}
+
