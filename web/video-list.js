@@ -1,7 +1,7 @@
 // Video list functionality
 import { listVideos } from './api.js';
 import { showStatus } from './ui.js';
-import { initializeHLSPlayer } from './video-player.js';
+import { initializeHLSPlayer, cleanupHLSPlayer } from './video-player.js';
 
 /**
  * Render video cards in the grid
@@ -9,6 +9,11 @@ import { initializeHLSPlayer } from './video-player.js';
  * @param {HTMLElement} container - Container element for video cards
  */
 const renderVideoCards = (videos, container) => {
+  // Clean up existing HLS instances before re-rendering
+  container.querySelectorAll('video').forEach(video => {
+    cleanupHLSPlayer(video);
+  });
+
   if (videos.length === 0) {
     container.innerHTML = '<div class="empty-state">No videos found. Upload a video to get started!</div>';
     return;
@@ -17,22 +22,58 @@ const renderVideoCards = (videos, container) => {
   container.innerHTML = videos.map(video => `
     <div class="video-card">
       <div class="video-card-header">
-        <h3>${video.name || video.id}</h3>
+        <h3>${escapeHtml(video.name || video.id)}</h3>
         <small>${video.segments || 0} segments</small>
       </div>
-      <video controls preload="metadata">
-        <source src="${video.playlistUrl}" type="application/x-mpegURL">
-      </video>
+      <div style="position: relative; background: #000;">
+        <video controls preload="metadata" style="width: 100%; display: block;">
+          <source src="${escapeHtml(video.playlistUrl)}" type="application/x-mpegURL">
+          Your browser does not support the video tag.
+        </video>
+      </div>
       <div class="video-card-footer">
-        <a href="${video.playlistUrl}" target="_blank">Open playlist</a>
+        <a href="${escapeHtml(video.playlistUrl)}" target="_blank">Open playlist</a>
       </div>
     </div>
   `).join('');
 
-  // Initialize HLS.js for all video elements
-  container.querySelectorAll('video').forEach(video => {
-    initializeHLSPlayer(video);
-  });
+  // Initialize HLS.js for all video elements after a short delay to ensure DOM is ready
+  // and HLS.js library is loaded
+  const initPlayers = () => {
+    if (typeof Hls === 'undefined') {
+      // Wait a bit more if HLS.js isn't loaded yet
+      setTimeout(initPlayers, 100);
+      return;
+    }
+
+    container.querySelectorAll('video').forEach((video, index) => {
+      // Small delay between initializations to avoid overwhelming the browser
+      setTimeout(() => {
+        initializeHLSPlayer(video);
+      }, index * 50);
+    });
+  };
+
+  // Start initialization after DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPlayers);
+  } else {
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    requestAnimationFrame(() => {
+      setTimeout(initPlayers, 0);
+    });
+  }
+};
+
+/**
+ * Escape HTML to prevent XSS
+ * @param {string} text - Text to escape
+ * @returns {string} Escaped text
+ */
+const escapeHtml = (text) => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 };
 
 /**
