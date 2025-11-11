@@ -127,10 +127,35 @@ exports.processVideoOnUpload = functions
       const videoId = `video_${Date.now()}`;
       const hlsFolder = `videos/${videoId}`;
 
+      // Read and modify playlist to use absolute URLs
+      const playlistPath = path.join(outputDir, 'playlist.m3u8');
+      let playlistContent = fs.readFileSync(playlistPath, 'utf-8');
+      
+      // Get the base URL for the playlist
+      const storageBucket = storage.bucket();
+      const playlistDestination = `${hlsFolder}/playlist.m3u8`;
+      const playlistBaseUrl = `https://storage.googleapis.com/${storageBucket.name}/${encodeURIComponent(playlistDestination).replace(/'/g, '%27')}`;
+      const baseUrl = playlistBaseUrl.substring(0, playlistBaseUrl.lastIndexOf('/') + 1);
+      
+      // Replace relative segment paths with absolute URLs
+      // Match lines that end with .ts and don't start with # (segment filenames)
+      playlistContent = playlistContent.replace(/^([^#\r\n]+\.ts)$/gm, (match) => {
+        const segmentName = match.trim();
+        // If it's already an absolute URL, leave it
+        if (segmentName.startsWith('http://') || segmentName.startsWith('https://')) {
+          return segmentName;
+        }
+        // Convert relative path to absolute URL
+        return baseUrl + segmentName;
+      });
+      
+      // Write modified playlist
+      fs.writeFileSync(playlistPath, playlistContent);
+      
       // Upload playlist
       const playlistFile = await uploadToStorage(
-        path.join(outputDir, 'playlist.m3u8'),
-        `${hlsFolder}/playlist.m3u8`,
+        playlistPath,
+        playlistDestination,
         'application/vnd.apple.mpegurl'
       );
 
@@ -217,3 +242,36 @@ exports.listVideos = functions
       });
     }
   });
+
+// Function to set CORS configuration on the storage bucket
+exports.setCors = functions.https.onRequest(async (req, res) => {
+  enableCORS(res);
+  if (handleOptions(req, res)) return;
+
+  try {
+    const bucket = storage.bucket();
+    const corsConfig = [
+      {
+        origin: ['*'],
+        method: ['GET', 'HEAD', 'OPTIONS'],
+        responseHeader: [
+          'Content-Type',
+          'Content-Length',
+          'Content-Range',
+          'Range',
+          'Accept-Ranges',
+          'Access-Control-Allow-Origin',
+          'Access-Control-Allow-Methods',
+          'Access-Control-Allow-Headers'
+        ],
+        maxAgeSeconds: 3600
+      }
+    ];
+
+    await bucket.setCorsConfiguration(corsConfig);
+    res.json({ success: true, message: 'CORS configuration set' });
+  } catch (error) {
+    console.error('CORS setup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});

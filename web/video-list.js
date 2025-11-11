@@ -19,7 +19,15 @@ const renderVideoCards = (videos, container) => {
     return;
   }
 
-  container.innerHTML = videos.map(video => `
+  // Add cache busting to playlist URLs
+  const addCacheBust = (url) => {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}_cb=${Date.now()}`;
+  };
+
+  container.innerHTML = videos.map(video => {
+    const playlistUrlWithCacheBust = addCacheBust(video.playlistUrl);
+    return `
     <div class="video-card">
       <div class="video-card-header">
         <h3>${escapeHtml(video.name || video.id)}</h3>
@@ -27,7 +35,7 @@ const renderVideoCards = (videos, container) => {
       </div>
       <div style="position: relative; background: #000;">
         <video controls preload="metadata" style="width: 100%; display: block;">
-          <source src="${escapeHtml(video.playlistUrl)}" type="application/x-mpegURL">
+          <source src="${escapeHtml(playlistUrlWithCacheBust)}" type="application/x-mpegURL">
           Your browser does not support the video tag.
         </video>
       </div>
@@ -35,7 +43,8 @@ const renderVideoCards = (videos, container) => {
         <a href="${escapeHtml(video.playlistUrl)}" target="_blank">Open playlist</a>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   // Initialize HLS.js for all video elements after a short delay to ensure DOM is ready
   // and HLS.js library is loaded

@@ -10,7 +10,8 @@
     "serve": "firebase emulators:start",
     "serve:functions": "cd functions && npm run serve",
     "logs": "firebase functions:log",
-    "setup": "npm run install:functions"
+    "setup": "npm run install:functions",
+    "set-cors": "node set-cors.js"
   },
   "keywords": [
     "firebase",
@@ -20,6 +21,8 @@
     "hls"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "firebase-admin": "^13.6.0"
+  }
 }
-
